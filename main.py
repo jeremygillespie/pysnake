@@ -1,3 +1,8 @@
 import display
+import graph
 
-display.initialize()
+g = graph.Graph(3, 4)
+
+print(g.occupied)
+
+# display.initialize()

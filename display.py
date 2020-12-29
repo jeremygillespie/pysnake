@@ -1,15 +1,15 @@
-from tkinter import *
+import tkinter as tk
 
 
-class App(Frame):
+class App(tk.Frame):
     def __init__(self, parent):
         super().__init__(parent)
         self.pack()
 
-        self.entry = Entry()
+        self.entry = tk.Entry()
         self.entry.pack()
 
-        self.contents = StringVar()
+        self.contents = tk.StringVar()
         self.contents.set("")
         self.entry["textvar"] = self.contents
 
@@ -21,6 +21,6 @@ class App(Frame):
 
 
 def initialize():
-    root = Tk()
+    root = tk.Tk()
     app = App(root)
     app.mainloop()
