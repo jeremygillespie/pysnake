@@ -11,6 +11,8 @@ def offset(a, b):
 
 
 class Graph:
-    def __init__(self, w, h):
-        self.occupied = np.zeros((w, h))
+    def __init__(self, width, height):
+        self.width = width
+        self.height = height
+        self.occupied = np.zeros((width, height))
         self.head = (0, 0)
