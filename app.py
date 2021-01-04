@@ -1,5 +1,5 @@
 import tkinter as tk
-import graph
+from graph import Graph, Point
 
 
 class App():
@@ -12,9 +12,10 @@ class App():
 
         self.board = Board()
 
-        self.graph = graph.Graph(20, 10)
-        self.graph.occupied[:, 0] = 1
-        self.graph.occupied[0, :] = 1
+        self.graph = Graph(20, 10)
+        self.graph.occupied[0, 0] = 1
+        self.graph.occupied[0, 1] = 2
+        self.graph.occupied[1, 1] = 3
 
         self.update_board()
 
@@ -46,12 +47,23 @@ class Board(tk.Canvas):
 
         for x in range(graph.width):
             for y in range(graph.height):
-                if graph.occupied[x, graph.height - 1 - y] > 0:
+                point = Point(x, graph.height - 1 - y)
+                if graph.occupied[point] > 0:
                     x0 = x*self.vert_size + self.vert_padding
                     y0 = y*self.vert_size + self.vert_padding
                     x1 = x0+self.vert_size - self.vert_padding
                     y1 = y0+self.vert_size - self.vert_padding
-                    self.create_rectangle(x0, y0, x1, y1, fill='green')
+                    self.create_rectangle(
+                        x0, y0, x1, y1, fill='green', outline='')
+
+                    off = graph.outgoing(point)
+                    if off:
+                        x0 += off.dx * 0.5 * self.vert_size
+                        x1 += off.dx * 0.5 * self.vert_size
+                        y0 -= off.dy * 0.5 * self.vert_size
+                        y1 -= off.dy * 0.5 * self.vert_size
+                        self.create_rectangle(
+                            x0, y0, x1, y1, fill='green', outline='')
 
 
 if __name__ == '__main__':
