@@ -56,12 +56,12 @@ class Board(tk.Canvas):
                     self.create_rectangle(
                         x0, y0, x1, y1, fill='green', outline='')
 
-                    off = graph.outgoing(point)
-                    if off:
-                        x0 += off.dx * 0.5 * self.vert_size
-                        x1 += off.dx * 0.5 * self.vert_size
-                        y0 -= off.dy * 0.5 * self.vert_size
-                        y1 -= off.dy * 0.5 * self.vert_size
+                    direc = graph.outgoing(point)
+                    if direc:
+                        x0 += direc.dx * 0.5 * self.vert_size
+                        x1 += direc.dx * 0.5 * self.vert_size
+                        y0 -= direc.dy * 0.5 * self.vert_size
+                        y1 -= direc.dy * 0.5 * self.vert_size
                         self.create_rectangle(
                             x0, y0, x1, y1, fill='green', outline='')
 

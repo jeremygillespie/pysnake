@@ -2,18 +2,17 @@ from collections import namedtuple
 import numpy as np
 
 Point = namedtuple('Point', 'x y')
-Dir = namedtuple('Dir', 'dx dy')
+Direc = namedtuple('Direc', 'dx dy')
 
-north = Dir(0, 1)
-south = Dir(0, -1)
-east = Dir(1, 0)
-west = Dir(-1, 0)
+north = Direc(0, 1)
+south = Direc(0, -1)
+east = Direc(1, 0)
+west = Direc(-1, 0)
 cardinals = [north, south, east, west]
 
 
-def offset(point, dir):
-    t = tuple(np.array(point) + np.array(dir))
-    return Point(t[0], t[1])
+def offset(point, direc):
+    return Point(point.x + direc.dx, point.y + direc.dy)
 
 
 class Graph:
@@ -39,8 +38,8 @@ class Graph:
             return True
 
     def outgoing(self, point):
-        for dir in cardinals:
-            p = offset(point, dir)
-            if self.occupied[p] == self.occupied[point] + 1:
-                return dir
+        for direc in cardinals:
+            new_point = offset(point, direc)
+            if self.occupied[new_point] == self.occupied[point] + 1:
+                return direc
         return None
