@@ -2,87 +2,95 @@ from collections import namedtuple
 import numpy as np
 
 
-class Point(namedtuple('Point', 'x y')):
+class point(namedtuple('point', 'x y')):
     def __add__(self, other):
-        return Point(self.x + other.x, self.y + other.y)
+        return point(self.x + other.x, self.y + other.y)
 
     def __sub__(self, other):
-        return Point(self.x - other.x, self.y - other.y)
+        return point(self.x - other.x, self.y - other.y)
 
     def __mul__(self, n):
-        return Point(self.x * n, self.y * n)
+        return point(self.x * n, self.y * n)
 
 
-north = Point(0, 1)
-south = Point(0, -1)
-east = Point(1, 0)
-west = Point(-1, 0)
+north = point(0, 1)
+south = point(0, -1)
+east = point(1, 0)
+west = point(-1, 0)
 cardinals = [north, south, east, west]
 
 
-class Graph:
-    def __init__(self, width, height, start=Point(0, 0)):
-        self.width = width
-        self.height = height
-        self.head = start
+class graph(np.ndarray):
+    def __new__(subtype, shape, dtype=float, buffer=None, offset=0,
+                strides=None, order=None):
+        obj = super(InfoArray, subtype).__new__(subtype, shape, dtype,
+                                                buffer, offset, strides,
+                                                order)
 
-        self.occupied = np.full((width, height), 0, dtype=int)
+        # obj.info = info
 
-        for p in range(1, 6):
-            self.occupied[p-1, 0] = p
-        for p in range(6, 11):
-            self.occupied[5, p-6] = p
+        return obj
 
-    def decrement_occupied(self):
-        self.occupied[self.occupied > 0] -= 1
+    def __array_finalize__(self, obj):
+        if obj is None:
+            return
 
-    def inbounds(self, p):
-        if p.x < 0 or p.y < 0:
-            return False
-
-        if p.x >= self.width or p.y >= self.height:
-            return False
-
-        return True
-
-    def incoming(self, p):
-        for direc in cardinals:
-            p1 = p + direc
-            if self.inbounds(p1) and self.occupied[p1] > 0 and self.occupied[p1] == self.occupied[p] - 1:
-                return direc * -1
-
-    def __str__(self):
-        result = ''
-        for y in range(self.height-1, -1, -1):
-            for x in range(self.width):
-                p = Point(x, y)
-                if self.incoming(p) == south:
-                    result += '∨   '
-                elif self.inbounds(p + north) and self.incoming(p + north) == north:
-                    result += '∧   '
-                else:
-                    result += '    '
-
-            result += '\n'
-
-            for x in range(self.width):
-                p = Point(x, y)
-                if self.occupied[p]:
-                    result += '# '
-                else:
-                    result += '. '
-
-                if self.incoming(p) == west:
-                    result += '< '
-                elif self.inbounds(p + east) and self.incoming(p + east) == east:
-                    result += '> '
-                else:
-                    result += '  '
-
-            result += '\n'
-
-        return result
+        # self.info = getattr(obj, 'info', None)
 
 
-g = Graph(10, 10)
-print(g)
+def width(graph):
+    return graph.shape[0]
+
+
+def height(graph):
+    return graph.shape[1]
+
+
+def inbounds(graph, p):
+    if p.x < 0 or p.y < 0:
+        return False
+
+    if p.x >= width(graph) or p.y >= height(graph):
+        return False
+
+    return True
+
+
+def incoming(occ, p):
+    for direc in cardinals:
+        p1 = p + direc
+        if inbounds(occ, p1) and occ[p1] > 0 and occ[p1] == occ[p] - 1:
+            return direc * -1
+
+
+def output(occ):
+    result = ''
+    for y in range(height(occ) - 1, -1, -1):
+        for x in range(width(occ)):
+            p = point(x, y)
+            if incoming(occ, p) == south:
+                result += '∨   '
+            elif inbounds(occ, p + north) and incoming(occ, p + north) == north:
+                result += '∧   '
+            else:
+                result += '    '
+
+        result += '\n'
+
+        for x in range(width(occ)):
+            p = point(x, y)
+            if occ[p]:
+                result += '# '
+            else:
+                result += '. '
+
+            if incoming(occ, p) == west:
+                result += '< '
+            elif inbounds(occ, p + east) and incoming(occ, p + east) == east:
+                result += '> '
+            else:
+                result += '  '
+
+        result += '\n'
+
+    return result
