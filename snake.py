@@ -1,4 +1,4 @@
-from collections import namedtuple
+from collections import namedtuple, deque
 import numpy as np
 
 
@@ -13,11 +13,13 @@ class point(namedtuple('point', 'x y')):
         return point(self.x * n, self.y * n)
 
 
-north = point(0, -1)
+north = point(0, 1)
 east = point(1, 0)
-south = point(0, 1)
+south = point(0, -1)
 west = point(-1, 0)
 cardinals = [north, east, south, west]
+diagonals = [north, north+east, east, south+east,
+             south, south+west, west, north+west]
 
 
 class occupied:
@@ -61,76 +63,93 @@ class occupied:
             if self.inbounds(p1) and self.occ[p1] == self.occ[p] + 1:
                 return direc
 
-    def __str__(self):
-        result = ''
-        for y in range(self.height):
-            for x in range(self.width):
-                p = point(x, y)
-                if self.incoming(p) == south:
-                    result += '∨   '
-                elif self.inbounds(p + north) and self.incoming(p + north) == north:
-                    result += '∧   '
-                else:
-                    result += '    '
 
-            result += '\n'
+class occupied_walls(occupied):
+    def __init__(self, copy=None, width=10, height=10, walls=None):
+        super().__init__(copy, width, height)
 
-            for x in range(self.width):
-                p = point(x, y)
-                if self.occ[p]:
-                    result += '# '
-                else:
-                    result += '. '
+        if walls is not None:
+            self.walls = walls
+        elif copy is not None:
+            self.walls = copy.walls
+        else:
+            self.walls = np.full((width, height), False, dtype=bool)
 
-                if self.incoming(p) == west:
-                    result += '< '
-                elif self.inbounds(p + east) and self.incoming(p + east) == east:
-                    result += '> '
-                else:
-                    result += '  '
-
-            result += '\n'
-
-        return result
+    def movable(self, p):
+        if not super().movable(p):
+            return False
+        elif self.walls[p]:
+            return False
+        else:
+            return True
 
 
 class corner(namedtuple('corner', 'x, y, direc')):
     pass
 
 
-top_l = 0
-top_r = 1
-bot_l = 2
-bot_r = 3
+cor_sw = 0
+cor_nw = 1
+cor_ne = 2
+cor_se = 3
 
-corner_directions = [bot_l, bot_r, top_l, top_l]
+corner_indices = [cor_sw, cor_nw, cor_ne, cor_se]
+corner_offsets = [south+west, north+west, north+east, south+east]
 
-cor_right = 1
+cor_pos = 1
 cor_none = 0
-cor_left = -1
+cor_neg = -1
 
 
-class occupied_corners(occupied):
+class occupied_walls_corners(occupied_walls):
 
-    def __init__(self, copy=None, width=10, height=10):
-        super().__init__(copy, width, height)
+    def __init__(self, copy=None, width=10, height=10, walls=None):
+        super().__init__(copy, width, height, walls)
 
-        if copy != None:
+        if copy is not None:
             self.cor = np.copy(copy.cor)
             self.cor_map = copy.cor_map
         else:
-            offset = np.repeat([0, 1, width, width + 1], width * height)
-            grid = np.tile(np.arange(width * height), 4)
-            cor_map = np.reshape(grid + offset, (4, width, height))
+            offset = np.tile([0, width+1, width + 2, 1],
+                             width * height).reshape(width, height, 4)
+            row = np.arange(width).reshape(width, 1)
+            col = (np.arange(height) * (width + 1)).reshape(1, height)
+            grid = np.tile(row, (1, height)) + np.tile(col, (width, 1))
+            cor_map = np.repeat(grid, 4, axis=1).reshape(
+                width, height, 4) + offset
 
-            cor_map[[top_l, bot_l], 0, :] = 0
-            cor_map[[top_r, bot_r], -1, :] = 0
-            cor_map[[top_l, top_r], :, 0] = 0
-            cor_map[[bot_l, bot_r], :, -1] = 0
+            cor_map[0, :, [cor_nw, cor_sw]] = 0
+            cor_map[-1, :, [cor_ne, cor_se]] = 0
+            cor_map[:, 0, [cor_sw, cor_se]] = 0
+            cor_map[:, -1, [cor_nw, cor_ne]] = 0
+
+            checked = np.full_like(self.walls, False, dtype=bool)
+            for p, w in np.ndenumerate(self.walls):
+                if w and not checked[p]:
+                    wall_corner = cor_map[p][0]
+                    wall_cluster = []
+                    adjacent = deque([point(*p)])
+                    while len(adjacent) > 0:
+                        p1 = adjacent.pop()
+                        wall_cluster.append(p1)
+                        checked[p1] = True
+                        if p1.x == 0 or p1.x == width - 1 or p1.y == 0 or p1.y == height - 1:
+                            wall_corner = 0
+                        for direc in diagonals:
+                            p2 = p1 + direc
+                            if self.inbounds(p2) and self.walls[p2] and not checked[p2]:
+                                adjacent.append(p2)
+                    for p1 in wall_cluster:
+                        for direc in corner_indices:
+                            offset = corner_offsets[direc]
+                            for dx, dy in [(-1, -1), (-1, 0), (0, -1), (0, 0)]:
+                                reverse = point(offset.x * dx, offset.y * dy)
+                                if self.inbounds(p1 + reverse):
+                                    cor_map[p1 + reverse][direc] = wall_corner
 
             corners, indices = np.unique(cor_map, return_inverse=True)
             self.cor = np.full(len(corners), cor_none, dtype=int)
-            self.cor_map = indices.reshape(4, width, height)
+            self.cor_map = indices.reshape(width, height, 4)
 
     def step(self, p, length, incoming):
         super().step(p, length)
@@ -142,3 +161,73 @@ class occupied_corners(occupied):
         if not super().movable(p):
             return False
         return True
+
+
+class printable(occupied_walls_corners):
+
+    def __str__(self):
+        result = ''
+        for y in range(self.height - 1, -1, -1):
+            c = self.cor[self.cor_map[0, y, cor_nw]]
+            if c == cor_pos:
+                result += '+ '
+            elif c == cor_neg:
+                result += '- '
+            else:
+                result += '  '
+
+            for x in range(self.width):
+                p = point(x, y)
+                if self.incoming(p) == south:
+                    result += '∨ '
+                elif self.inbounds(p + north) and self.incoming(p + north) == north:
+                    result += '∧ '
+                else:
+                    result += '  '
+
+                c = self.cor[self.cor_map[p][cor_ne]]
+                if c == cor_pos:
+                    result += '+ '
+                elif c == cor_neg:
+                    result += '- '
+                else:
+                    result += '  '
+
+            result += '\n  '
+
+            for x in range(self.width):
+                p = point(x, y)
+                if self.occ[p]:
+                    result += '# '
+                elif self.walls[p]:
+                    result += 'X '
+                else:
+                    result += '  '
+
+                if self.incoming(p) == west:
+                    result += '< '
+                elif self.inbounds(p + east) and self.incoming(p + east) == east:
+                    result += '> '
+                else:
+                    result += '  '
+
+            result += '\n'
+
+        for x in range(self.width):
+            c = self.cor[self.cor_map[x, 0, cor_sw]]
+            if c == cor_pos:
+                result += '+   '
+            elif c == cor_neg:
+                result += '-   '
+            else:
+                result += '    '
+
+        c = self.cor[self.cor_map[self.width - 1, 0, cor_se]]
+        if c == cor_pos:
+            result += '+'
+        elif c == cor_neg:
+            result += '-'
+        else:
+            result += ' '
+
+        return result
