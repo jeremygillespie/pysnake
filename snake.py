@@ -123,7 +123,6 @@ class occupied_walls_corners(occupied_walls):
 
         if copy is not None:
             self.cor = np.copy(copy.cor)
-            self.cor_dur = np.copy(copy.cor_dur)
             self.cor_map = copy.cor_map
         else:
             self._gen_cor_map()
@@ -131,12 +130,12 @@ class occupied_walls_corners(occupied_walls):
 
             corners, indices = np.unique(self.cor_map, return_inverse=True)
             self.cor = np.full_like(corners, cor_none, dtype=int)
-            self.cor_dur = np.full_like(corners, 0, dtype=int)
             self.cor_map = indices.reshape(width, height, 4)
 
     def step(self, p, prev, length):
         super().step(p, length)
-        self._decrement_corners()
+        self.cor[self.cor > 0] -= 1
+        self.cor[self.cor < 0] += 1
         self._set_corners(p, prev, length)
 
     def eat(self, p, prev, new_length):
@@ -150,7 +149,7 @@ class occupied_walls_corners(occupied_walls):
         outgoing = p - prev
         new = self._new_corners(incoming, outgoing)
         old = self.cor[self.cor_map[prev]]
-        bad = new != cor_none & old != cor_none & new != old
+        bad = (new > 0 & old < 0) | (new < 0 & old > 0)
         if bad.count_nonzero() == 0:
             return True
         else:
@@ -211,24 +210,21 @@ class occupied_walls_corners(occupied_walls):
             result[right] = cor_pos
         return result
 
-    def _decrement_corners(self):
-        self.cor_dur[self.cor_dur > 1] -= 1
-        self.cor = np.where(self.cor_dur > 1, self.cor, cor_none)
-
     def _set_corners(self, p, prev, length):
         incoming = self.incoming(prev)
         outgoing = p - prev
         index = self.cor_map[prev]
-        new = self._new_corners(incoming, outgoing)
+        new = self._new_corners(incoming, outgoing) * (length - 1)
         old = self.cor[index]
         self.cor[index] = np.where(new != cor_none, new, old)
-        old_dur = self.cor_dur[index]
-        self.cor_dur[index] = np.where(new != cor_none, length, old_dur)
 
 
 class printable(occupied_walls_corners):
     def __str__(self):
         result = ''
+        for x in range(self.width + 2):
+            result += '#   '
+        result += '\n  '
         for y in range(self.height - 1, -1, -1):
             c = self.cor[self.cor_map[0, y, cor_nw]]
             if c > 0:
@@ -255,14 +251,24 @@ class printable(occupied_walls_corners):
                 else:
                     result += '  '
 
-            result += '\n  '
+            result += '\n#   '
 
             for x in range(self.width):
                 p = point(x, y)
-                if self.occ[p]:
-                    result += '# '
+                if self.occ[p] > 0 and self.outgoing(p) is not None:
+                    out = self.outgoing(p)
+                    if out == north:
+                        result += '∧ '
+                    elif out == south:
+                        result += '∨ '
+                    elif out == east:
+                        result += '> '
+                    else:
+                        result += '< '
+                elif self.occ[p]:
+                    result += 'O '
                 elif self.walls[p]:
-                    result += 'X '
+                    result += '# '
                 else:
                     result += '  '
 
@@ -273,7 +279,7 @@ class printable(occupied_walls_corners):
                 else:
                     result += '  '
 
-            result += '\n'
+            result += '#\n  '
 
         for x in range(self.width):
             c = self.cor[self.cor_map[x, 0, cor_sw]]
@@ -286,10 +292,12 @@ class printable(occupied_walls_corners):
 
         c = self.cor[self.cor_map[self.width - 1, 0, cor_se]]
         if c > 0:
-            result += '+'
+            result += '+ '
         elif c < 0:
-            result += '-'
+            result += '- '
         else:
-            result += ' '
-
+            result += '  '
+        result += '\n'
+        for x in range(self.width + 2):
+            result += '#   '
         return result
