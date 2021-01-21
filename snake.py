@@ -13,11 +13,11 @@ class point(namedtuple('point', 'x y')):
         return point(self.x * n, self.y * n)
 
 
-north = point(0, 1)
-south = point(0, -1)
+north = point(0, -1)
 east = point(1, 0)
+south = point(0, 1)
 west = point(-1, 0)
-cardinals = [north, south, east, west]
+cardinals = [north, east, south, west]
 
 
 class occupied:
@@ -37,6 +37,9 @@ class occupied:
     def eat(self, p, new_length):
         self.occ[p] = new_length
 
+    def movable(self, p):
+        return self.inbounds(p) and self.occ[p] > 1
+
     def inbounds(self, p):
         if p.x < 0 or p.y < 0:
             return False
@@ -45,9 +48,6 @@ class occupied:
             return False
 
         return True
-
-    def movable(self, p):
-        return self.inbounds(p) and self.occ[p] > 1
 
     def incoming(self, p):
         for direc in cardinals:
@@ -63,7 +63,7 @@ class occupied:
 
     def __str__(self):
         result = ''
-        for y in range(self.height - 1, -1, -1):
+        for y in range(self.height):
             for x in range(self.width):
                 p = point(x, y)
                 if self.incoming(p) == south:
@@ -94,14 +94,16 @@ class occupied:
         return result
 
 
-class index(namedtuple('index', 'xx yy')):
-    def __getitem__(self, key):
-        return self.xx[key], self.yy[key]
+class corner(namedtuple('corner', 'x, y, direc')):
+    pass
 
-    def __setitem__(self, key, val):
-        self.xx[key] = val.x
-        self.yy[key] = val.y
 
+top_l = 0
+top_r = 1
+bot_l = 2
+bot_r = 3
+
+corner_directions = [bot_l, bot_r, top_l, top_l]
 
 cor_right = 1
 cor_none = 0
@@ -110,25 +112,33 @@ cor_left = -1
 
 class occupied_corners(occupied):
 
-    def __init__(self, copy=None, cor_map=None, width=10, height=10):
+    def __init__(self, copy=None, width=10, height=10):
         super().__init__(copy, width, height)
 
         if copy != None:
-            self.cor = copy.cor
-        else:
-            self.cor = np.full((width + 1, height + 1), cor_none, dtype=int)
-
-        if cor_map != None:
-            self.cor_map = cor_map
-        elif copy != None:
+            self.cor = np.copy(copy.cor)
             self.cor_map = copy.cor_map
         else:
-            self.cor_map = index(*np.indices((width + 1, height + 1)))
-            self.cor_map[point(1, 2)] = point(5, 6)
-            # generate edge indices
+            offset = np.repeat([0, 1, width, width + 1], width * height)
+            grid = np.tile(np.arange(width * height), 4)
+            cor_map = np.reshape(grid + offset, (4, width, height))
+
+            cor_map[[top_l, bot_l], 0, :] = 0
+            cor_map[[top_r, bot_r], -1, :] = 0
+            cor_map[[top_l, top_r], :, 0] = 0
+            cor_map[[bot_l, bot_r], :, -1] = 0
+
+            corners, indices = np.unique(cor_map, return_inverse=True)
+            self.cor = np.full(len(corners), cor_none, dtype=int)
+            self.cor_map = indices.reshape(4, width, height)
 
     def step(self, p, length, incoming):
         super().step(p, length)
 
     def eat(self, p, new_length, incoming):
         super().eat(p, new_length)
+
+    def movable(self, p):
+        if not super().movable(p):
+            return False
+        return True
